@@ -99,23 +99,28 @@ def _get_plugin(gl=False):
     except:
         pass
 
-    # Speed up compilation on Windows.
-    if os.name == 'nt':
-        # Skip telemetry sending step in vcvarsall.bat
-        os.environ['VSCMD_SKIP_SENDTELEMETRY'] = '1'
+    build_dir = torch.utils.cpp_extension._get_build_directory(plugin_name, False)
 
-        # Opportunistically patch distutils to cache MSVC environments.
-        try:
-            import distutils._msvccompiler
-            import functools
-            if not hasattr(distutils._msvccompiler._get_vc_env, '__wrapped__'):
-                distutils._msvccompiler._get_vc_env = functools.lru_cache()(distutils._msvccompiler._get_vc_env)
-        except:
-            pass
+    if not os.path.exists(os.path.join(build_dir, plugin_name + torch.utils.cpp_extension.LIB_EXT)):
+        # Speed up compilation on Windows.
+        if os.name == 'nt':
+            # Skip telemetry sending step in vcvarsall.bat
+            os.environ['VSCMD_SKIP_SENDTELEMETRY'] = '1'
 
-    # Compile and load.
-    source_paths = [os.path.join(os.path.dirname(__file__), fn) for fn in source_files]
-    torch.utils.cpp_extension.load(name=plugin_name, sources=source_paths, extra_cflags=opts, extra_cuda_cflags=opts+['-lineinfo'], extra_ldflags=ldflags, with_cuda=True, verbose=False)
+            # Opportunistically patch distutils to cache MSVC environments.
+            try:
+                import distutils._msvccompiler
+                import functools
+                if not hasattr(distutils._msvccompiler._get_vc_env, '__wrapped__'):
+                    distutils._msvccompiler._get_vc_env = functools.lru_cache()(distutils._msvccompiler._get_vc_env)
+            except:
+                pass
+
+        # Compile and load.
+        source_paths = [os.path.join(os.path.dirname(__file__), fn) for fn in source_files]
+        torch.utils.cpp_extension.load(name=plugin_name, sources=source_paths, extra_cflags=opts, extra_cuda_cflags=opts+['-lineinfo'], extra_ldflags=ldflags, with_cuda=True, verbose=False)
+    else:
+        torch.utils.cpp_extension._import_module_from_library(plugin_name, build_dir, True)
 
     # Import, cache, and return the compiled module.
     _cached_plugin[gl] = importlib.import_module(plugin_name)
